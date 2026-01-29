@@ -10,7 +10,7 @@ const Login = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
       <div className="p-8 bg-white rounded-lg shadow-md w-96">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">Magic Mail AI</h1>
+        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">Logit Mail</h1>
         <p className="text-gray-600 text-center mb-8">Sign in to manage your emails intelligently</p>
         
         <button

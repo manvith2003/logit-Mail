@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 import httpx
+import urllib.parse
 from fastapi import HTTPException
 from app.core.config import settings
 
@@ -13,12 +14,12 @@ class AuthService:
             "client_id": settings.GOOGLE_CLIENT_ID,
             "redirect_uri": settings.GOOGLE_REDIRECT_URI,
             "response_type": "code",
-            "scope": "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+            "scope": "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar",
             "access_type": "offline",
             "prompt": "consent"
         }
-        # Manual construction to ensure correct encoding
-        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        # Proper encoding ensures spaces in scope are handled correctly (%20 or +)
+        query_string = urllib.parse.urlencode(params)
         return f"{GOOGLE_AUTH_URL}?{query_string}"
 
     async def verify_google_token(self, code: str) -> Dict:

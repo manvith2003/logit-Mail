@@ -20,8 +20,10 @@ async def get_current_user(user_id: str = Query(...), db: AsyncSession = Depends
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
+from fastapi import BackgroundTasks
+
 @router.post("/sync")
-async def sync_emails(user_id: str, folder: str = "INBOX", limit: int = 50, db: AsyncSession = Depends(get_db)):
+async def sync_emails(background_tasks: BackgroundTasks, user_id: str, folder: str = "INBOX", limit: int = 50, db: AsyncSession = Depends(get_db)):
     print(f"DEBUG: sync_emails called for user {user_id}, folder={folder}, limit={limit}")
     """
     Triggers email synchronization for the user.
@@ -33,8 +35,14 @@ async def sync_emails(user_id: str, folder: str = "INBOX", limit: int = 50, db: 
          raise HTTPException(status_code=404, detail="User not found")
 
     try:
-        count = await gmail_service.fetch_emails(db, user, folder=folder, max_results=limit)
-        return {"message": "Sync complete", "emails_fetched": count}
+        count, new_email_ids = await gmail_service.fetch_emails(db, user, folder=folder, max_results=limit)
+        
+        # Trigger AI processing in background
+        if new_email_ids:
+            print(f"Scheduling background AI processing for {len(new_email_ids)} emails...")
+            background_tasks.add_task(gmail_service.process_emails_background, new_email_ids, str(user.id))
+            
+        return {"message": "Sync complete. AI Agent processing started in background.", "emails_fetched": count}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -124,7 +132,7 @@ async def list_emails(
             "sender": email.sender,
             "recipient": email.recipient,
             "snippet": email.snippet,
-            "body_text": email.body_text,
+            # "body_text": email.body_text, # OMITTED for performance
             "received_at": email.received_at, # FastAPI/JSONResponse handles datetime
             "is_processed": email.is_processed,
             "event_title": email.event_title,
@@ -137,6 +145,8 @@ async def list_emails(
         serialized_emails.append(e_dict)
 
     return serialized_emails
+
+# AI Chat Endpoint - REMOVED
 
 @router.post("/{message_id}/star")
 async def star_email(message_id: str, user_id: str = Query(...), db: AsyncSession = Depends(get_db)):
@@ -176,3 +186,51 @@ async def trash_email(message_id: str, user_id: str = Query(...), db: AsyncSessi
         return {"message": "Email moved to trash"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{email_id}/dismiss_action")
+async def dismiss_action(email_id: str, user_id: str = Query(...), db: AsyncSession = Depends(get_db)):
+    """
+    Dismisses the 'action required' flag for an email.
+    """
+    result = await db.execute(select(Email).filter(Email.id == email_id))
+    email = result.scalars().first()
+    
+    if not email:
+        raise HTTPException(status_code=404, detail="Email not found")
+        
+    email.action_required = False
+    await db.commit()
+    return {"status": "success"}
+
+@router.get("/{email_id}")
+async def get_email_details(email_id: str, user_id: str = Query(...), db: AsyncSession = Depends(get_db)):
+    """
+    Fetches a single email by ID with full body content.
+    """
+    result = await db.execute(select(Email).filter(Email.id == email_id, Email.user_id == user_id))
+    email = result.scalars().first()
+    
+    if not email:
+        raise HTTPException(status_code=404, detail="Email not found")
+    
+    # Return full details including body
+    return {
+        "id": str(email.id),
+        "message_id": email.message_id,
+        "thread_id": email.thread_id,
+        "subject": email.subject,
+        "sender": email.sender,
+        "recipient": email.recipient,
+        "snippet": email.snippet,
+        "body_text": email.body_text, # Full body
+        "body_html": email.body_html, # Full Html
+        "received_at": email.received_at, 
+        "is_processed": email.is_processed,
+        "event_title": email.event_title,
+        "event_date": email.event_date,
+        "deadline": email.deadline,
+        "action_required": email.action_required,
+        "priority": email.priority,
+        "category": email.category,
+        "labelIds": email.label_ids.split(',') if email.label_ids else [] 
+    }

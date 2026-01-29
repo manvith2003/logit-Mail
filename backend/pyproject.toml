@@ -1,5 +1,5 @@
 [project]
-name = "magic-mail-backend"
+name = "logit-mail-backend"
 version = "0.1.0"
 description = "Backend for AI Email Assistant"
 authors = [

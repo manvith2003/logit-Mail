@@ -8,6 +8,7 @@ import Layout from '../components/layout/Layout';
 import EmailList from '../components/email/EmailList';
 import EmailDetail from '../components/email/EmailDetail';
 import ComposeModal from '../components/email/ComposeModal';
+import NotificationBanner from '../components/NotificationBanner';
 
 const Dashboard = () => {
   const [searchParams] = useSearchParams();
@@ -69,7 +70,12 @@ const Dashboard = () => {
       const skip = page * limit;
       console.log("Fetching emails:", { userId, activeFolder, debouncedSearchQuery, limit, skip });
       const data = await getEmails(userId, activeFolder, debouncedSearchQuery, limit, skip);
-      setEmails(data);
+      if (Array.isArray(data)) {
+          setEmails(data);
+      } else {
+          console.warn("API returned non-array data:", data);
+          setEmails([]);
+      }
     } catch (error) {
       console.error(error);
       setDebugError(error.toString());
@@ -166,9 +172,15 @@ const Dashboard = () => {
       setIsComposeOpen(true);
   };
 
-  if (!userId) {
-    return null; 
-  }
+    const handleActionComplete = (emailId) => {
+        setEmails(emails.map(e => e.id === emailId ? { ...e, action_required: false } : e));
+    };
+
+    if (!userId) {
+        return <div className="flex items-center justify-center h-screen text-gray-500">Checking authentication...</div>;
+    }
+
+    console.log("Dashboard Render. Emails:", emails?.length);
 
   return (
     <Layout 
@@ -177,6 +189,15 @@ const Dashboard = () => {
         onFolderChange={setActiveFolder}
         onSearch={setSearchQuery}
     >
+        {/* Notification Banner for AI Events */}
+        {emails.length > 0 && (
+            <NotificationBanner 
+                emails={emails} 
+                userId={userId} 
+                onActionComplete={handleActionComplete} 
+            />
+        )}
+
         {/* Toolbar Area */}
         {!selectedEmail && (
             <div className="flex justify-between items-center px-4 py-2 border-b border-gray-100 bg-white sticky top-0 z-10">
@@ -191,13 +212,13 @@ const Dashboard = () => {
                         <RefreshCcw size={18} />
                     </button>
                     <span className="text-sm text-gray-500">
-                        {loading ? 'Loading...' : `${emails.length} items`}
+                        {loading ? 'Loading...' : `${emails?.length || 0} items`}
                     </span>
                 </div>
                 
                 <div className="flex items-center gap-2">
                      <span className="text-xs text-gray-400">
-                        {(page * limit) + 1}-{ (page * limit) + emails.length }
+                        {(page * limit) + 1}-{ (page * limit) + (emails?.length || 0) }
                      </span>
                      <div className="flex">
                          <button 
@@ -209,8 +230,8 @@ const Dashboard = () => {
                          </button>
                          <button 
                              onClick={() => setPage(page + 1)}
-                             disabled={emails.length < limit} 
-                             className={`p-2 rounded-full ${emails.length < limit ? 'text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
+                             disabled={(emails?.length || 0) < limit} 
+                             className={`p-2 rounded-full ${(emails?.length || 0) < limit ? 'text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}
                          >
                             <span className="sr-only">Next</span>›
                          </button>
@@ -227,7 +248,7 @@ const Dashboard = () => {
         )}
 
         {/* content */}
-        {loading && emails.length === 0 ? (
+        {loading && (!emails || emails.length === 0) ? (
              <div className="flex flex-col items-center justify-center h-full text-gray-500 pb-20">
                  <div className="animate-spin mb-4"><RefreshCcw size={24}/></div>
                  <p>Loading your inbox...</p>

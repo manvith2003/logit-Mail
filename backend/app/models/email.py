@@ -19,17 +19,23 @@ class Email(Base):
     recipient = Column(String, nullable=True) # To header
     
     body_text = Column(Text, nullable=True)
+    body_html = Column(Text, nullable=True)
     snippet = Column(String, nullable=True)
     
     received_at = Column(DateTime(timezone=True), nullable=True)
     is_processed = Column(Boolean, default=False) # For AI processing status
-    folder = Column(String, default="INBOX", index=True) # INBOX, SENT, drafts, etc.
-
-    # Extracted Features (RAG/AI)
+    folder = Column(String, index=True) # INBOX, SENT, DRAFTS
+    label_ids = Column(String, nullable=True) # JSON or comma-separated list of Gmail Label IDs
+    
+    # AI Analysis Fields
     event_title = Column(String, nullable=True)
     event_date = Column(DateTime(timezone=True), nullable=True)
     deadline = Column(DateTime(timezone=True), nullable=True)
     action_required = Column(Boolean, default=False)
+    
+    # Advanced Extraction
+    priority = Column(String, default="low", index=True) # high, medium, low
+    category = Column(String, default="other", index=True) # meeting, exam, assignment, etc.
 
     # FTS
     from sqlalchemy.dialects.postgresql import TSVECTOR

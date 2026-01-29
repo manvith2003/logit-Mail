@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+export const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 export const syncEmails = async (userId, folder = 'inbox', limit = 50) => {
   const response = await fetch(`${API_BASE_URL}/emails/sync?user_id=${userId}&folder=${folder}&limit=${limit}`, {
@@ -15,6 +15,15 @@ export const getEmails = async (userId, folder = 'inbox', query = '', limit = 50
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch emails');
+  }
+  return response.json();
+  return response.json();
+};
+
+export const getEmailById = async (userId, emailId) => {
+  const response = await fetch(`${API_BASE_URL}/emails/${emailId}?user_id=${userId}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch email details');
   }
   return response.json();
 };

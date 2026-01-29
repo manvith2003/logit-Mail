@@ -15,7 +15,9 @@ async def login_google():
     """
     Redirects the user to the Google OAuth login page.
     """
+    print("DEBUG: /login/google endpoint was hit!")
     auth_url = auth_service.get_google_auth_url()
+    print(f"DEBUG: Redirecting to {auth_url}")
     return RedirectResponse(url=auth_url)
 
 @router.get("/callback/google")
@@ -74,4 +76,6 @@ async def callback_google(code: str, db: AsyncSession = Depends(get_db)):
     except HTTPException as e:
         raise e
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

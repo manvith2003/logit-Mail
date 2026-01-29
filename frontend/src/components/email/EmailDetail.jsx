@@ -1,7 +1,31 @@
-import React from 'react';
-import { ArrowLeft, Printer, ExternalLink, Star, Reply, CornerUpLeft, MoreVertical } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Printer, ExternalLink, Star, Reply, CornerUpLeft, MoreVertical, Archive, Trash2, Mail } from 'lucide-react';
+import { getEmailById } from '../../lib/api';
 
-const EmailDetail = ({ email, onBack, onReply }) => {
+const EmailDetail = ({ email: initialEmail, onBack, onReply }) => {
+    const [email, setEmail] = useState(initialEmail);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        // Fetch full details (including body) when component mounts
+        const fetchFullEmail = async () => {
+            try {
+                // If we already have the body and it's not truncated, maybe skip? 
+                // But safer to just fetch to ensure fresh status
+                const fullData = await getEmailById(localStorage.getItem('magic_mail_user_id'), initialEmail.id);
+                setEmail(fullData);
+            } catch (error) {
+                console.error("Failed to load full email", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (initialEmail.id) {
+            fetchFullEmail();
+        }
+    }, [initialEmail.id]);
+
   if (!email) return null;
 
   return (
@@ -19,11 +43,18 @@ const EmailDetail = ({ email, onBack, onReply }) => {
                 </div>
             </div>
             <div className="text-gray-500 text-sm">
-                1 of 24
+                {/* 1 of 24 */}
             </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full">
+            {/* Loading State */}
+            {loading && !email.body_text && (
+                 <div className="w-full py-10 flex justify-center text-gray-400">
+                     Compiling message...
+                 </div>
+            )}
+
             {/* Subject Header */}
             <div className="flex items-start justify-between mb-6">
                 <h1 className="text-2xl font-normal text-gray-900">
@@ -125,6 +156,6 @@ const EmailDetail = ({ email, onBack, onReply }) => {
     </div>
   );
 };
-import { Archive, Trash2, Mail } from 'lucide-react'; // Imports for the toolbar icons
+
 
 export default EmailDetail;

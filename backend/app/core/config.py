@@ -3,7 +3,7 @@ from pydantic import AnyHttpUrl, PostgresDsn, RedisDsn, validator
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Magic Mail AI"
+    PROJECT_NAME: str = "Logit Mail"
     API_V1_STR: str = "/api/v1"
     
     # CORS
@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "magic_mail"
+    POSTGRES_DB: str = "logit_mail"
     SQLALCHEMY_DATABASE_URI: Union[str, None] = None
 
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)

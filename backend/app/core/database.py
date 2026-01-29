@@ -6,7 +6,9 @@ from app.core.config import settings
 engine = create_async_engine(
     settings.SQLALCHEMY_DATABASE_URI,
     future=True,
-    echo=True,
+    echo=False,
+    pool_size=20,
+    max_overflow=20,
 )
 
 SessionLocal = sessionmaker(
