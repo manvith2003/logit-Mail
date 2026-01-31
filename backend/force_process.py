@@ -12,8 +12,8 @@ async def force_process():
         result = await db.execute(select(User).limit(1))
         user = result.scalars().first()
         
-        # Get unprocessed email
-        res = await db.execute(select(Email).filter(Email.user_id == user.id, Email.is_processed == False).order_by(desc(Email.received_at)).limit(1))
+        # Get unprocessed email (Specific target)
+        res = await db.execute(select(Email).filter(Email.user_id == user.id, Email.subject.like("%Deadline for the assessment%"), Email.is_processed == False).limit(1))
         email = res.scalars().first()
         
         if not email:

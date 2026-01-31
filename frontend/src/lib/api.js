@@ -63,3 +63,30 @@ export const untrashEmail = async (userId, messageId) => {
   if (!response.ok) throw new Error('Failed to restore email');
   return response.json();
 };
+
+export const addToCalendar = async (userId, title, startTime, description = '') => {
+  const response = await fetch(`${API_BASE_URL}/calendar/events`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      title: title,
+      start_time: startTime,
+      description: description
+    }),
+  });
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Failed to add to calendar: ${errText}`);
+  }
+  return response.json();
+};
+
+export const dismissEmailAction = async (userId, emailId) => {
+  const response = await fetch(`${API_BASE_URL}/emails/${emailId}/dismiss_action?user_id=${userId}`, { method: 'POST' });
+  if (!response.ok) throw new Error('Failed to dismiss action');
+  return response.json();
+};

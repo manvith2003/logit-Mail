@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Star, Square, Archive, Trash2, MailOpen } from 'lucide-react';
+import { Star, Square, Archive, Trash2, MailOpen, CalendarPlus } from 'lucide-react';
 
-const SwipeableEmailItem = ({ email, onClick, onStar, onDelete }) => {
+const SwipeableEmailItem = ({ email, onClick, onStar, onDelete, onAddToCalendar }) => {
   const [startX, setStartX] = useState(0);
   const [translateX, setTranslateX] = useState(0);
   const isSwiping = useRef(false);
@@ -91,7 +91,7 @@ const SwipeableEmailItem = ({ email, onClick, onStar, onDelete }) => {
                 
                 {/* AI Tags */}
                 {email.event_title && (
-                    <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full whitespace-nowrap">
+                    <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full whitespace-nowrap flex items-center gap-1">
                         Event
                     </span>
                 )}
@@ -108,7 +108,18 @@ const SwipeableEmailItem = ({ email, onClick, onStar, onDelete }) => {
             </div>
 
             {/* Hover Actions (Desktop) */}
-            <div className="hidden group-hover:flex items-center gap-2 pl-2 w-24 justify-end bg-white/80 backdrop-blur-sm">
+            <div className="hidden group-hover:flex items-center gap-2 pl-2 w-auto justify-end bg-white/80 backdrop-blur-sm">
+                {/* Quick Add To Calendar (Only if detected) */}
+                {email.event_date && (
+                    <button 
+                        title={`Add to Calendar: ${new Date(email.event_date).toLocaleDateString()}`}
+                        className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-full"
+                        onClick={(e) => { e.stopPropagation(); onAddToCalendar(email); }}
+                    >
+                        <CalendarPlus size={16} />
+                    </button>
+                )}
+
                 <button title="Archive" className="p-1.5 hover:bg-gray-200 rounded-full text-gray-600" onClick={(e) => e.stopPropagation()}>
                     <Archive size={16} />
                 </button>
@@ -124,7 +135,7 @@ const SwipeableEmailItem = ({ email, onClick, onStar, onDelete }) => {
   );
 };
 
-const EmailList = ({ emails, onEmailClick, onStar, onDelete }) => {
+const EmailList = ({ emails, onEmailClick, onStar, onDelete, onAddToCalendar }) => {
   return (
     <div className="w-full">
       {emails.map((email) => (
@@ -133,7 +144,8 @@ const EmailList = ({ emails, onEmailClick, onStar, onDelete }) => {
             email={email} 
             onClick={onEmailClick} 
             onStar={onStar} 
-            onDelete={onDelete} 
+            onDelete={onDelete}
+            onAddToCalendar={onAddToCalendar}
          />
       ))}
     </div>

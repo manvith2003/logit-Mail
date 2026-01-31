@@ -122,6 +122,25 @@ class GmailService:
                         parts = payload.get('parts', [])
                         body_html = None
                         
+                        # Helper to extract PDF text
+                        def extract_pdf_from_attachment(msg_id, attachment_id):
+                            try:
+                                att = service.users().messages().attachments().get(userId='me', messageId=msg_id, id=attachment_id).execute()
+                                data = att.get('data')
+                                if data:
+                                    file_data = base64.urlsafe_b64decode(data)
+                                    import io
+                                    from pypdf import PdfReader
+                                    reader = PdfReader(io.BytesIO(file_data))
+                                    text = ""
+                                    for page in reader.pages:
+                                        text += page.extract_text() + "\n"
+                                    return f"\n\n[Attachment PDF Content]:\n{text}"
+                            except Exception as e:
+                                print(f"Error parsing PDF attachment: {e}")
+                                return ""
+                            return ""
+
                         def get_parts(parts_list):
                             text = ""
                             html = None
@@ -129,14 +148,29 @@ class GmailService:
                                 if part.get('mimeType') == 'text/plain':
                                     data = part.get('body', {}).get('data')
                                     if data:
-                                        text = base64.urlsafe_b64decode(data).decode('utf-8')
+                                        text += base64.urlsafe_b64decode(data).decode('utf-8')
                                 elif part.get('mimeType') == 'text/html':
                                     data = part.get('body', {}).get('data')
                                     if data:
                                         html = base64.urlsafe_b64decode(data).decode('utf-8')
+                                elif part.get('mimeType') == 'application/pdf':
+                                    # PDF Attachment Found
+                                    att_id = part.get('body', {}).get('attachmentId')
+                                    if att_id:
+                                        # Optimization: Only fetch PDF if the body hints at it (prevent waste)
+                                        # Check the *snippet* or valid body text found so far
+                                        current_context = (body_text + text).lower()
+                                        keywords = ["attach", "schedule", "timetable", "exam", "syllabus", "pdf", "file", "find enclosed", "shared"]
+                                        
+                                        if any(k in current_context for k in keywords):
+                                            print(f"DEBUG: Context implies useful PDF ('{next((k for k in keywords if k in current_context), '')}'). Downloading...")
+                                            pdf_text = extract_pdf_from_attachment(msg['id'], att_id)
+                                            text += pdf_text
+                                        else:
+                                            print(f"DEBUG: Skipping PDF (No context keywords found in body).")
                                 elif part.get('parts'):
                                     nested_text, nested_html = get_parts(part.get('parts'))
-                                    if nested_text and not text: text = nested_text
+                                    if nested_text: text += nested_text # Append, don't replace
                                     if nested_html and not html: html = nested_html
                             return text, html
 

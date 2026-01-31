@@ -88,7 +88,11 @@ async def list_emails(
     """
     Lists processed emails with optional search and pagination.
     """
+    # Optimized Query: Defer loading of heavy body text/html fields
+    from sqlalchemy.orm import defer
+    
     query = select(Email).filter(Email.user_id == user_id).order_by(Email.received_at.desc())
+    query = query.options(defer(Email.body_text), defer(Email.body_html))
     
     # ... (Search and Filters kept same) ...
     # Search Filter
@@ -139,6 +143,8 @@ async def list_emails(
             "event_date": email.event_date,
             "deadline": email.deadline,
             "action_required": email.action_required,
+            "priority": email.priority,
+            "category": email.category,
             # Handle labels: Convert "LABEL1,LABEL2" -> ["LABEL1", "LABEL2"]
             "labelIds": email.label_ids.split(',') if email.label_ids else [] 
         }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { RefreshCcw } from 'lucide-react';
-import { syncEmails, getEmails, starEmail, unstarEmail, trashEmail, untrashEmail } from '../lib/api';
+import { syncEmails, getEmails, starEmail, unstarEmail, trashEmail, untrashEmail, addToCalendar, dismissEmailAction } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { useDebounce } from '../hooks/useDebounce';
 import Layout from '../components/layout/Layout';
@@ -58,8 +58,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (userId) {
       fetchEmails();
-      // Trigger silent sync on load
-      syncEmails(userId, activeFolder, 500).catch(err => console.error("Auto-sync failed", err));
+      // Trigger silent sync on load (Limit 50 to prevent lagging)
+      syncEmails(userId, activeFolder, 50).catch(err => console.error("Auto-sync failed", err));
     }
   }, [userId, activeFolder, debouncedSearchQuery, page]); 
 
@@ -176,6 +176,32 @@ const Dashboard = () => {
         setEmails(emails.map(e => e.id === emailId ? { ...e, action_required: false } : e));
     };
 
+
+
+    const handleAddToCalendar = async (email) => {
+        if (!email.event_title || !email.event_date) return;
+        try {
+          showToast('Adding to Google Calendar...', 'info');
+          const result = await addToCalendar(userId, email.event_title, email.event_date, email.snippet || email.subject);
+          
+          showToast('Event added successfully! 📅', 'success');
+          
+          // Clear "Action Required" status locally and on server
+          setEmails(emails.map(e => e.id === email.id ? { ...e, action_required: false } : e));
+          
+          try {
+             await dismissEmailAction(userId, email.id);
+          } catch(ignore) { console.warn("Failed to sync dismissal", ignore); }
+
+          if (result.event_link) {
+             window.open(result.event_link, '_blank');
+          }
+        } catch (error) {
+          console.error(error);
+          showToast('Failed to add to calendar.', 'error');
+        }
+    };
+
     if (!userId) {
         return <div className="flex items-center justify-center h-screen text-gray-500">Checking authentication...</div>;
     }
@@ -265,6 +291,7 @@ const Dashboard = () => {
                 onEmailClick={setSelectedEmail} 
                 onStar={handleStar}
                 onDelete={handleDelete}
+                onAddToCalendar={handleAddToCalendar}
             />
         )}
         
