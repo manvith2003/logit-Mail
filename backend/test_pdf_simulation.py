@@ -1,59 +1,64 @@
-
 import asyncio
+import os
 from datetime import datetime
+# Set env var for testing if not set
+os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "dummy") 
+
+# Mock settings if needed, or rely on app.core.config
+# We need to make sure we can import app.services.agent_service
+import sys
+sys.path.append(os.getcwd())
+
 from app.services.agent_service import agent_service
-from app.core.database import SessionLocal
 
-# Mock Time: Feb 1, 2026
-MOCK_NOW = datetime(2026, 2, 1, 10, 0, 0)
-
-# Simulated Email Body + PDF Content
-MOCK_EMAIL_BODY = """
-Hi, please find the attached exam schedule for the semester.
-Good luck!
-
-[Attachment PDF Content]:
-FINAL EXAM SCHEDULE 2026
--------------------------
-1. Mathematics - Feb 10th, 2026 (10:00 AM) - Room 101
-2. Physics     - Feb 12th, 2026 (2:00 PM)  - Room 102
-3. Chemistry   - Feb 15th, 2026 (10:00 AM) - Room 103
--------------------------
-"""
-
-async def run_test():
-    print(f"Simulating PDF Extraction Test at Mock Time: {MOCK_NOW}")
-    print("="*60)
-    print(MOCK_EMAIL_BODY)
-    print("="*60)
+async def test_same_day_events():
+    print("--- Testing Same Day Events (PDF Simulation) ---")
     
-    async with SessionLocal() as db:
-        try:
-            result = await agent_service.analyze_email(
-                email_content=MOCK_EMAIL_BODY,
-                received_at=MOCK_NOW,
-                email_id="pdf_test_id",
-                db=db,
-                user_id="test_user",
-                sender="university@example.com"
-            )
-            
-            print("\nAI Result:")
-            print(result)
-            
-            if result and result.get('event_title'):
-                print(f"\n✅ Detected Event: {result['event_title']} on {result['date_text']}")
-                
-                # Check if it picked the FIRST one (Math - Feb 10)
-                if "Feb 10" in result['date_text'] or "Math" in result['event_title']:
-                    print("✅ CORRECTLY picked the FIRST/NEXT exam!")
-                else:
-                    print("⚠️ WARNING: Did not pick the first exam. Check output.")
+    # Simulate text extracted from a PDF
+    pdf_text = """
+    [Attachment PDF Content]:
+    Exam Schedule
+    
+    Date: October 25, 2025
+    10:00 AM - Mathematics
+    02:00 PM - Physics
+    
+    Date: October 26, 2025
+    10:00 AM - Chemistry
+    """
+    
+    email_content = f"Please find the attached exam schedule.\n\n{pdf_text}"
+    received_at = datetime(2025, 10, 1)
+    
+    print(f"Input Content:\n{email_content}\n")
+    
+    if not agent_service.llm:
+        print("Skipping test: LLM not initialized (missing API key?)")
+        return
+
+    try:
+        result = await agent_service.analyze_email(
+            email_content=email_content,
+            received_at=received_at,
+            email_id="test_pdf_1"
+        )
+        
+        print("\nResult:")
+        import json
+        print(json.dumps(result, indent=2))
+        
+        # Verification Logic
+        if result and result.get("event_type") == "exam":
+            title = result.get("event_title", "").lower()
+            if "math" in title and "physics" in title:
+                print("\n✅ SUCCESS: Detected both exams on same day.")
             else:
-                print("❌ FAILED to detect event.")
-                
-        except Exception as e:
-            print(f"❌ CRASH: {e}")
+                print("\n❌ FAILURE: Did not combine events. Title:", result.get("event_title"))
+        else:
+             print("\n❌ FAILURE: Event not detected or wrong type.")
+             
+    except Exception as e:
+        print(f"\n❌ ERROR: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(run_test())
+    asyncio.run(test_same_day_events())

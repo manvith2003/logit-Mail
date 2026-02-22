@@ -43,11 +43,12 @@ Extract:
 - date_text: The EXACT text snippet describing the date.
 - event_type: exam | deadline | meeting
 
-SPECIAL RULE FOR LISTS/TIMETABLES:
+SPECIAL RULE FOR LISTS/TIMETABLES (e.g. from PDFs):
 1. If text contains multiple events on DIFFERENT dates, extract ONLY the *FIRST* upcoming one.
-2. If multiple events occur on the *SAME DATE* (e.g. Math at 10am, Physics at 2pm), COMBINE them into one event.
-   - Title: "2 Exams: Math & Physics" (or similar summary)
+2. If multiple events occur on the *SAME DATE* (e.g. "10am Math" and "2pm Physics"), YOU MUST COMBINE them into one event.
+   - Title: "2 Exams: Math & Physics" (or "Math & Physics Exams")
    - Date: The shared date.
+   - Do NOT create separate JSON objects. Return ONE object representing the combined schedule for that day.
 
 STEP 3: OUTPUT JSON
 {{
@@ -100,35 +101,49 @@ EMAIL CONTENT:
             resolved_date = None
             
             if date_text:
-                # Attempt 1: Direct Parse
-                resolved_date = dateparser.parse(
-                    date_text,
-                    settings={'RELATIVE_BASE': received_at, 'PREFER_DATES_FROM': 'future'}
-                )
+                prefixes = ["", "before ", "by ", "on ", "due ", "due date ", "until "]
+                lower_text = date_text.lower()
                 
-                if not resolved_date:
-                    lower_text = date_text.lower()
+                for prefix in prefixes:
+                    if resolved_date:
+                        break
+                        
+                    # 1. Clean prefix
+                    if prefix and prefix not in lower_text:
+                        continue
+                        
+                    clean_text = lower_text.replace(prefix, "").strip()
+                    if not clean_text:
+                        continue
                     
-                    # Manual Fix for "next week [day]" -> [day] + 7 days
-                    if "next week" in lower_text:
-                         clean_text = lower_text.replace("next week", "").strip()
-                         # Try parsing just the day (e.g., "saturday")
-                         base_day = dateparser.parse(
-                            clean_text,
-                            settings={'RELATIVE_BASE': received_at, 'PREFER_DATES_FROM': 'future'}
-                         )
+                    # 2. Try Direct Parse
+                    parsed = dateparser.parse(
+                        clean_text,
+                        settings={'RELATIVE_BASE': received_at, 'PREFER_DATES_FROM': 'future'}
+                    )
+                    if parsed:
+                        resolved_date = parsed
+                        break
+                        
+                    # 3. Manual Fallbacks on CLEANED text
+                    
+                    # "next week [day]" -> [day] + 7 days
+                    if "next week" in clean_text:
+                         super_clean = clean_text.replace("next week", "").strip()
+                         base_day = dateparser.parse(super_clean, settings={'RELATIVE_BASE': received_at, 'PREFER_DATES_FROM': 'future'})
                          if base_day:
                              resolved_date = base_day + timedelta(days=7)
-                             # If "Saturday" was today/tomorrow, adding 7 days is correct for "next week"
-                    
+                             break
 
-                    
-                    if not resolved_date and "end of this month" in lower_text:
+                    # "end of this month"
+                    if "end of this month" in clean_text:
                         import calendar
                         last_day = calendar.monthrange(received_at.year, received_at.month)[1]
                         resolved_date = received_at.replace(day=last_day)
-                        
-                    if not resolved_date and "end of next month" in lower_text:
+                        break
+
+                    # "end of next month"
+                    if "end of next month" in clean_text:
                         import calendar
                         if received_at.month == 12:
                             nm_year = received_at.year + 1
@@ -138,36 +153,35 @@ EMAIL CONTENT:
                             nm_month = received_at.month + 1
                         last_day = calendar.monthrange(nm_year, nm_month)[1]
                         resolved_date = received_at.replace(year=nm_year, month=nm_month, day=last_day)
+                        break
 
-                    if not resolved_date and "end of weekend" in lower_text:
-                        # Next Sunday
+                    # "end of weekend"
+                    if "end of weekend" in clean_text:
                         days_ahead = 6 - received_at.weekday()
-                        if days_ahead <= 0: 
-                             days_ahead += 7
+                        if days_ahead <= 0: days_ahead += 7
                         resolved_date = received_at + timedelta(days=days_ahead)
+                        break
+                    
+                    # Manual Fix for "weekend" -> Upcoming Friday
+                    if "weekend" in clean_text:
+                        # Find next Friday (weekday 4)
+                        # Current weekday: Mon=0, Sun=6
+                        days_ahead = 4 - received_at.weekday()
+                        if days_ahead <= 0: # If today is Friday, Saturday, Sunday -> Next Friday
+                             days_ahead += 7
+                        
+                        resolved_date = received_at + timedelta(days=days_ahead)
+                        # Set to end of day (23:59:59) roughly implies "night"
+                        resolved_date = resolved_date.replace(hour=23, minute=59, second=59)
+                        break
 
-                    # Fallback for "Next Saturday" if parser failed (treat as Next Week Saturday)
-                    if not resolved_date and "next " in lower_text:
-                         # e.g., "next saturday" -> try "next week saturday" logic
-                         clean_text = lower_text.replace("next ", "").strip()
-                         base_day = dateparser.parse(
-                            clean_text,
-                            settings={'RELATIVE_BASE': received_at, 'PREFER_DATES_FROM': 'future'}
-                         )
+                    # "next [day]" fallback (must be last manual check to avoid clashing with next week)
+                    if "next " in clean_text:
+                         super_clean = clean_text.replace("next ", "").strip()
+                         base_day = dateparser.parse(super_clean, settings={'RELATIVE_BASE': received_at, 'PREFER_DATES_FROM': 'future'})
                          if base_day:
                              resolved_date = base_day + timedelta(days=7)
-
-                    if not resolved_date:
-                        prefixes = ["next ", "before ", "by ", "on ", "due "]
-                        for prefix in prefixes:
-                            if prefix in lower_text:
-                                clean_text = lower_text.replace(prefix, "").strip()
-                                resolved_date = dateparser.parse(
-                                    clean_text,
-                                    settings={'RELATIVE_BASE': received_at, 'PREFER_DATES_FROM': 'future'}
-                                )
-                                if resolved_date:
-                                    break
+                             break
 
             # --- CONTEXT LOOKUP (The "Memory" Feature) ---
             # If no date found, but text implies a reference like "before the meeting"
