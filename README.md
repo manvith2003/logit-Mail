@@ -1,4 +1,4 @@
-# Logit Mail 🪄📧
+# Logit Mail 
 
 A modern, AI-powered email client re-imagined for productivity. Built with React (Vite) and FastAPI.
 
